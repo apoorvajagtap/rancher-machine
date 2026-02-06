@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2019-06-01/storage"
 	"github.com/Azure/go-autorest/autorest/azure"
@@ -19,6 +20,7 @@ import (
 	"github.com/rancher/machine/libmachine/log"
 	"github.com/rancher/machine/libmachine/mcnflag"
 	"github.com/rancher/machine/libmachine/state"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -130,6 +132,7 @@ func NewDriver(hostName, storePath string) drivers.Driver {
 	// afterwards, especially for non-Create RPC calls. Therefore I am mostly
 	// making rest of the driver stateless by just relying on the following
 	// piece of info.
+	logrus.Info("NewDriver inside azure.go")
 	d := &Driver{
 		BaseDriver: &drivers.BaseDriver{
 			SSHUser:     defaultSSHUser,
@@ -503,6 +506,9 @@ func (d *Driver) Create() error {
 		return err
 	}
 
+	//panic("--- TESTING IF THIS CODE IS ACTUALLY EXECUTING ---")
+	log.Info("Creating VM in azure!!!")
+
 	var customData string
 	if d.CustomDataFile != "" {
 		buf, err := os.ReadFile(d.CustomDataFile)
@@ -570,6 +576,7 @@ func (d *Driver) Create() error {
 
 // Remove deletes the virtual machine and resources associated to it.
 func (d *Driver) Remove() error {
+	log.Info("Removing resource group in azure")
 	if err := d.checkLegacyDriver(false); err != nil {
 		return err
 	}
@@ -595,7 +602,12 @@ func (d *Driver) Remove() error {
 	if err := c.DeleteVirtualMachineIfExists(ctx, d.ResourceGroup, d.naming().VM()); err != nil {
 		return err
 	}
+	log.Info("About to remove NIC")
 	if err := c.DeleteNetworkInterfaceIfExists(ctx, d.ResourceGroup, d.naming().NIC()); err != nil {
+		log.Errorf("!!!Failed to remove NIC: %v", err.Error())
+		if strings.Contains(err.Error(), "NicReservedForAnotherVm") {
+			log.Info("NIC reserved for another VM errror1!!!!!!!!!!!!!!!!!!")
+		}
 		return err
 	}
 	if err := c.DeletePublicIPAddressIfExists(ctx, d.ResourceGroup, d.naming().IP()); err != nil {
